@@ -8,32 +8,21 @@ import React, {
 import {
   Sun,
   Heart,
-  Sparkles,
   Volume2,
   VolumeX,
-  Music,
   Compass,
   ChevronRight,
-  Send,
-  Award,
-  Smile,
-  Star,
   ArrowRight,
   RotateCcw,
-  Sparkle,
-  ShieldCheck,
-  CheckCircle2,
-  Feather,
-  Flower2,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
+import musicaRomantica from "./assets/yellow.mp3";
 
+// Sintetizador para la fanfare final de fuegos artificiales
 class RomanticFieldAudio {
   constructor() {
     this.ctx = null;
     this.isPlaying = false;
-    this.timer = null;
-    this.step = 0;
     this.gainNode = null;
   }
 
@@ -42,7 +31,7 @@ class RomanticFieldAudio {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       this.ctx = new AudioCtx();
       this.gainNode = this.ctx.createGain();
-      this.gainNode.gain.value = 0.15; // Soft ambient sound
+      this.gainNode.gain.value = 0.15;
       this.gainNode.connect(this.ctx.destination);
     }
     if (this.ctx.state === "suspended") {
@@ -51,8 +40,7 @@ class RomanticFieldAudio {
   }
 
   playNote(freq, duration = 1.8, type = "sine") {
-    if (!this.ctx || !this.isPlaying) return;
-
+    if (!this.ctx) return;
     try {
       const osc = this.ctx.createOscillator();
       const noteGain = this.ctx.createGain();
@@ -73,80 +61,25 @@ class RomanticFieldAudio {
       osc.start();
       osc.stop(this.ctx.currentTime + duration);
     } catch (e) {
-      console.warn("Audio playback issue", e);
+      console.warn("Audio issue", e);
     }
   }
 
   playCelebration() {
-    if (!this.ctx) this.init();
-    const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51]; // Bright C major chord fan-fare
+    this.init();
+    const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51];
     notes.forEach((freq, idx) => {
       setTimeout(() => {
         this.playNote(freq, 3.0, "triangle");
       }, idx * 180);
     });
   }
-
-  start() {
-    this.init();
-    if (this.isPlaying) return;
-    this.isPlaying = true;
-
-    // Golden hour warm chord arpeggios (G major - D major - Em - C)
-    const scale = [
-      196.0,
-      246.94,
-      293.66,
-      392.0, // G3, B3, D4, G4
-      293.66,
-      369.99,
-      440.0,
-      587.33, // D4, F#4, A4, D5
-      164.81,
-      246.94,
-      329.63,
-      392.0, // E3, B3, E4, G4
-      261.63,
-      329.63,
-      392.0,
-      523.25, // C4, E4, G4, C5
-    ];
-
-    const playSequence = () => {
-      if (!this.isPlaying) return;
-      const freq = scale[this.step % scale.length];
-
-      this.playNote(freq, 2.4, "sine");
-      if (this.step % 3 === 0) {
-        this.playNote(freq * 1.5, 3.0, "triangle"); // Harmony
-      }
-
-      this.step = (this.step + 1) % scale.length;
-      this.timer = setTimeout(playSequence, 550);
-    };
-
-    playSequence();
-  }
-
-  stop() {
-    this.isPlaying = false;
-    if (this.timer) clearTimeout(this.timer);
-  }
-
-  toggle() {
-    if (this.isPlaying) {
-      this.stop();
-    } else {
-      this.start();
-    }
-    return this.isPlaying;
-  }
 }
 
 export default function App() {
   // Navigation & Story Progress States
   const [hasStarted, setHasStarted] = useState(false);
-  const [progress, setProgress] = useState(0); // 0 to 100%
+  const [progress, setProgress] = useState(0); // 0 a 100%
   const [isWalking, setIsWalking] = useState(false);
 
   // Checkpoint Modal States
@@ -159,9 +92,39 @@ export default function App() {
   const [noButtonOffset, setNoButtonOffset] = useState({ x: 0, y: 0 });
   const [noButtonTextIdx, setNoButtonTextIdx] = useState(0);
 
-  // Audio State
+  // REFERENCIAS DE AUDIO (Corrección de error crítico)
   const audioSynthRef = useRef(null);
+  const audioRef = useRef(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  // Inicializar reproductor MP3 (yellow.mp3)
+  useEffect(() => {
+    audioRef.current = new Audio(musicaRomantica);
+    audioRef.current.loop = true;
+    audioRef.current.volume = 0.5;
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
+
+  // Función de Play/Pausa para yellow.mp3
+  const toggleAudio = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (isAudioPlaying) {
+      audio.pause();
+      setIsAudioPlaying(false);
+    } else {
+      audio
+        .play()
+        .then(() => setIsAudioPlaying(true))
+        .catch((err) => console.log("Permiso de audio requerido:", err));
+    }
+  };
 
   // Canvas Reference
   const canvasRef = useRef(null);
@@ -223,9 +186,6 @@ export default function App() {
 
   useEffect(() => {
     audioSynthRef.current = new RomanticFieldAudio();
-    return () => {
-      if (audioSynthRef.current) audioSynthRef.current.stop();
-    };
   }, []);
 
   useEffect(() => {
@@ -243,18 +203,16 @@ export default function App() {
     };
     window.addEventListener("resize", handleResize);
 
-    // Inicializar Girasoles con distribución 3D real por todo el terreno
     const numSunflowers = 120;
     const flowers = Array.from({ length: numSunflowers }, () => ({
-      x: (Math.random() - 0.5) * 3.2, // Dispersión lateral amplia
-      z: Math.random() * 900 + 40, // Profundidad de 40 a 940
+      x: (Math.random() - 0.5) * 3.2,
+      z: Math.random() * 900 + 40,
       scale: Math.random() * 0.35 + 0.75,
       swayOffset: Math.random() * Math.PI * 2,
       swaySpeed: Math.random() * 0.02 + 0.015,
       petals: Math.floor(Math.random() * 4) + 14,
     }));
 
-    // Initialize Floating Pollen particles
     const pollen = Array.from({ length: 60 }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
@@ -270,7 +228,7 @@ export default function App() {
     const render = () => {
       ctx.clearRect(0, 0, width, height);
 
-      // 1. Cielo de Atardecer Dorado
+      // 1. Sky Gradient
       const skyGradient = ctx.createLinearGradient(0, 0, 0, height);
       skyGradient.addColorStop(0, "#1e1b4b");
       skyGradient.addColorStop(0.35, "#7c2d12");
@@ -281,16 +239,15 @@ export default function App() {
 
       const horizonY = height * 0.52;
 
-      // 2. SUELO DE TIERRA REALISTA (Tono Terroso y Textura de Surcos)
+      // 2. Ground
       const groundGradient = ctx.createLinearGradient(0, horizonY, 0, height);
-      groundGradient.addColorStop(0, "#582f0e"); // Tierra cálida en el horizonte
-      groundGradient.addColorStop(0.25, "#3a1e05"); // Arcilla/Tierra húmeda
-      groundGradient.addColorStop(0.65, "#241002"); // Sombra de tierra oscura
-      groundGradient.addColorStop(1, "#0f0500"); // Profundidad de primer plano
+      groundGradient.addColorStop(0, "#582f0e");
+      groundGradient.addColorStop(0.25, "#3a1e05");
+      groundGradient.addColorStop(0.65, "#241002");
+      groundGradient.addColorStop(1, "#0f0500");
       ctx.fillStyle = groundGradient;
       ctx.fillRect(0, horizonY, width, height - horizonY);
 
-      // Líneas de perspectiva y destellos sobre la tierra secada por el sol
       ctx.save();
       for (let i = 1; i <= 25; i++) {
         const depthProgress = i / 25;
@@ -303,7 +260,7 @@ export default function App() {
       }
       ctx.restore();
 
-      // 2. Sun Glow Aura on Horizon
+      // Sun Glow
       const sunGlowRadius = Math.min(width, height) * 0.35;
       const sunGlow = ctx.createRadialGradient(
         width / 2,
@@ -313,15 +270,15 @@ export default function App() {
         horizonY,
         sunGlowRadius,
       );
-      sunGlow.addColorStop(0, "rgba(254, 240, 138, 0.95)"); // Bright golden yellow
-      sunGlow.addColorStop(0.4, "rgba(245, 158, 11, 0.5)"); // Warm amber
+      sunGlow.addColorStop(0, "rgba(254, 240, 138, 0.95)");
+      sunGlow.addColorStop(0.4, "rgba(245, 158, 11, 0.5)");
       sunGlow.addColorStop(1, "rgba(245, 158, 11, 0)");
       ctx.fillStyle = sunGlow;
       ctx.beginPath();
       ctx.arc(width / 2, horizonY, sunGlowRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 3. Sol / Girasol Gigante del Horizonte (Resplandeciente y Cálido)
+      // 3. Sol / Girasol Gigante
       const currProgress = progressRef.current;
       const giantScale = 0.45 + (currProgress / 100) * 0.85;
       const giantRadius = 40 * giantScale;
@@ -329,7 +286,6 @@ export default function App() {
       ctx.save();
       ctx.translate(width / 2, horizonY - 12);
 
-      // Rayos de luz giratorios
       ctx.save();
       ctx.rotate(Date.now() * 0.0003);
       for (let i = 0; i < 12; i++) {
@@ -347,7 +303,6 @@ export default function App() {
       }
       ctx.restore();
 
-      // Pétalos dorados del Sol
       const giantPetalCount = 20;
       for (let i = 0; i < giantPetalCount; i++) {
         const angle = (i * Math.PI * 2) / giantPetalCount;
@@ -370,7 +325,6 @@ export default function App() {
         ctx.restore();
       }
 
-      // Centro del Sol brillante (no oscuro)
       const sunCenterGrad = ctx.createRadialGradient(
         0,
         0,
@@ -391,7 +345,7 @@ export default function App() {
       ctx.fill();
       ctx.restore();
 
-      // 4. Campo de Girasoles en Distribución 3D Real
+      // 4. Render 3D Sunflowers
       const speed = fieldDataRef.current.walkSpeed;
       const time = Date.now() * 0.002;
 
@@ -407,11 +361,8 @@ export default function App() {
           }
         }
 
-        // Proyección matemática para cubrir todo el suelo verticalmente
         const perspective = 380 / flower.z;
         const screenX = width / 2 + flower.x * width * perspective;
-
-        // Mapear Z para que las flores se repartan desde el horizonte hasta abajo
         const depthRatio = 1 - flower.z / 950;
         const screenY =
           horizonY + Math.pow(depthRatio, 1.8) * (height - horizonY - 20);
@@ -435,7 +386,6 @@ export default function App() {
         ctx.save();
         ctx.translate(screenX + sway, screenY);
 
-        // --- HOJAS EN EL TALLO ---
         if (flowerSize > 20) {
           const drawLeaf = (isLeft) => {
             const side = isLeft ? -1 : 1;
@@ -462,7 +412,6 @@ export default function App() {
             ctx.fillStyle = leafGrad;
             ctx.fill();
 
-            // Nervadura
             ctx.beginPath();
             ctx.moveTo(0, flowerSize * 1.5);
             ctx.lineTo(side * leafLen * 0.7, flowerSize * 1.8);
@@ -476,7 +425,6 @@ export default function App() {
           drawLeaf(false);
         }
 
-        // --- TALLO ---
         const stemGrad = ctx.createLinearGradient(-3, 0, 3, 0);
         stemGrad.addColorStop(0, "#15803d");
         stemGrad.addColorStop(1, "#166534");
@@ -493,7 +441,6 @@ export default function App() {
         ctx.strokeStyle = stemGrad;
         ctx.stroke();
 
-        // --- PÉTALOS EN 2 CAPAS ---
         const drawPetalSet = (count, lenMult, angleOff, color1, color2) => {
           for (let p = 0; p < count; p++) {
             const angle = (p * Math.PI * 2) / count + angleOff;
@@ -529,10 +476,9 @@ export default function App() {
           }
         };
 
-        drawPetalSet(14, 1.1, Math.PI / 14, "#d97706", "#eab308"); // Traseros
-        drawPetalSet(14, 0.95, 0, "#f59e0b", "#fef08a"); // Delanteros
+        drawPetalSet(14, 1.1, Math.PI / 14, "#d97706", "#eab308");
+        drawPetalSet(14, 0.95, 0, "#f59e0b", "#fef08a");
 
-        // --- CENTRO DE LA FLOR ---
         const centerR = flowerSize * 0.36;
         const cGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, centerR);
         cGrad.addColorStop(0, "#1c0a00");
@@ -546,7 +492,8 @@ export default function App() {
 
         ctx.restore();
       });
-      // 5. Render Pollen & Floating Particles
+
+      // 5. Pollen
       fieldDataRef.current.pollen.forEach((p) => {
         p.y += p.speedY;
         p.x += Math.sin(p.y / 30) * p.speedX;
@@ -567,19 +514,19 @@ export default function App() {
         ctx.restore();
       });
 
-      // 6. Render Fireworks (When Proposal Accepted!)
+      // 6. Fireworks
       if (hasAcceptedRef.current) {
         fieldDataRef.current.fireworks.forEach((fw, idx) => {
           fw.x += fw.vx;
           fw.y += fw.vy;
-          fw.vy += 0.08; // Gravity
+          fw.vy += 0.08;
           fw.alpha -= 0.012;
 
           ctx.save();
           ctx.beginPath();
           ctx.arc(fw.x, fw.y, fw.radius, 0, Math.PI * 2);
           ctx.fillStyle = fw.color;
-          ctx.globalAlpha = Math.max(0, fw.alpha);
+          ctx.globalAlpha = Math.Max(0, fw.alpha);
           ctx.shadowBlur = 12;
           ctx.shadowColor = fw.color;
           ctx.fill();
@@ -590,7 +537,6 @@ export default function App() {
           }
         });
 
-        // Continuously spawn celebration particles
         if (Math.random() < 0.3) {
           spawnFireworkBurst(
             Math.random() * width,
@@ -610,7 +556,6 @@ export default function App() {
     };
   }, []);
 
-  // Sync state refs for canvas animation
   const progressRef = useRef(progress);
   useEffect(() => {
     progressRef.current = progress;
@@ -621,7 +566,6 @@ export default function App() {
     hasAcceptedRef.current = hasAccepted;
   }, [hasAccepted]);
 
-  // Spawn Fireworks Helper
   const spawnFireworkBurst = (x, y) => {
     const colors = [
       "#facc15",
@@ -655,7 +599,6 @@ export default function App() {
     setProgress((prev) => {
       const nextProgress = Math.min(100, prev + 0.6);
 
-      // Check if user hit any unvisited checkpoint
       const triggered = checkpoints.find(
         (cp) =>
           nextProgress >= cp.targetProgress &&
@@ -688,7 +631,6 @@ export default function App() {
     setIsWalking(false);
   }, []);
 
-  // Handle Keydown/Keyup for Spacebar or ArrowUp to walk
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === "Space" || e.code === "ArrowUp") {
@@ -712,7 +654,6 @@ export default function App() {
     setHasAccepted(true);
     setIsProposalOpen(false);
 
-    // 1. Guardar la respuesta de amor en Supabase
     try {
       const { error } = await supabase.from("respuestas").insert([
         {
@@ -731,7 +672,6 @@ export default function App() {
       console.error("Error de conexión:", err);
     }
 
-    // 2. Audio de celebración y fuegos artificiales
     if (audioSynthRef.current) {
       audioSynthRef.current.playCelebration();
     }
@@ -750,7 +690,6 @@ export default function App() {
   };
 
   const handleNoButtonHover = () => {
-    // Random offset dodging mouse/touch
     const randomX = (Math.random() - 0.5) * 220;
     const randomY = (Math.random() - 0.5) * 160;
     setNoButtonOffset({ x: randomX, y: randomY });
@@ -759,16 +698,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-amber-50 relative overflow-hidden font-sans select-none">
-      {/* 3D Field Canvas */}
       <canvas
         ref={canvasRef}
         className="fixed inset-0 pointer-events-none z-0"
       />
 
-      {/* Atmospheric Vignette Overlay */}
       <div className="fixed inset-0 bg-radial-vignette pointer-events-none z-10 opacity-40" />
 
-      {/* Top Header Navigation & Audio Control */}
+      {/* Header con botón de audio enlazado a yellow.mp3 */}
       <header className="relative z-20 max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
         <div className="flex items-center gap-3 bg-slate-950/60 border border-amber-400/30 px-4 py-2 rounded-full backdrop-blur-md shadow-lg">
           <Sun
@@ -780,14 +717,8 @@ export default function App() {
           </span>
         </div>
 
-        {/* Ambient Audio Toggle */}
         <button
-          onClick={() => {
-            if (audioSynthRef.current) {
-              const playing = audioSynthRef.current.toggle();
-              setIsAudioPlaying(playing);
-            }
-          }}
+          onClick={toggleAudio}
           className={`p-3 rounded-full border backdrop-blur-md transition-all flex items-center gap-2 text-xs font-semibold ${
             isAudioPlaying
               ? "bg-amber-400/20 border-amber-400 text-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.4)]"
@@ -801,12 +732,12 @@ export default function App() {
             <VolumeX className="w-4 h-4" />
           )}
           <span className="hidden sm:inline">
-            {isAudioPlaying ? "Música Encendida" : "Música"}
+            {isAudioPlaying ? "Música Encendida" : "Música Pausada"}
           </span>
         </button>
       </header>
 
-      {/* VIEW 1: INTRO EXPERIENCE SCREEN */}
+      {/* Pantalla de Inicio */}
       {!hasStarted && (
         <main className="relative z-20 min-h-[80vh] flex flex-col items-center justify-center p-6 text-center max-w-2xl mx-auto">
           <div className="bg-slate-900/80 border border-amber-400/40 p-8 sm:p-12 rounded-3xl backdrop-blur-xl shadow-[0_0_60px_rgba(251,191,36,0.25)] space-y-8 animate-fade-in">
@@ -848,9 +779,11 @@ export default function App() {
             <button
               onClick={() => {
                 setHasStarted(true);
-                if (audioSynthRef.current && !isAudioPlaying) {
-                  audioSynthRef.current.start();
-                  setIsAudioPlaying(true);
+                if (audioRef.current && !isAudioPlaying) {
+                  audioRef.current
+                    .play()
+                    .then(() => setIsAudioPlaying(true))
+                    .catch((err) => console.log(err));
                 }
               }}
               className="w-full py-4 px-8 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-extrabold text-base shadow-[0_0_30px_rgba(251,191,36,0.4)] transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
@@ -862,10 +795,9 @@ export default function App() {
         </main>
       )}
 
-      {/* VIEW 2: ACTIVE FIELD WALK HUD */}
+      {/* Recorrido */}
       {hasStarted && !hasAccepted && (
         <div className="relative z-20 max-w-2xl mx-auto px-6 flex flex-col items-center justify-between min-h-[82vh]">
-          {/* Progress Tracker Bar */}
           <div className="w-full bg-slate-900/80 border border-amber-400/30 rounded-2xl p-4 backdrop-blur-md shadow-xl space-y-3">
             <div className="flex justify-between items-center text-xs font-semibold">
               <span className="text-amber-300 flex items-center gap-1.5">
@@ -877,14 +809,12 @@ export default function App() {
               </span>
             </div>
 
-            {/* Progress Bar Container */}
             <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-amber-400/20 relative">
               <div
                 className="bg-gradient-to-r from-amber-400 to-yellow-300 h-full transition-all duration-200 shadow-[0_0_15px_#f59e0b]"
                 style={{ width: `${progress}%` }}
               />
 
-              {/* Checkpoint Indicators on Bar */}
               {checkpoints.map((cp) => (
                 <div
                   key={cp.id}
@@ -900,7 +830,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Interactive Walk Action Button */}
           <div className="w-full pb-8 flex flex-col items-center gap-3">
             <p className="text-xs text-amber-200/80 font-medium tracking-wide animate-pulse bg-slate-950/60 px-4 py-1.5 rounded-full border border-amber-400/20 backdrop-blur-md">
               {isWalking
@@ -919,7 +848,11 @@ export default function App() {
                 isWalking
                   ? "scale-[1.03] ring-4 ring-amber-300/50"
                   : "hover:scale-[1.02]"
-              } ${activeCheckpoint || isProposalOpen ? "opacity-50 cursor-not-allowed" : ""}`}
+              } ${
+                activeCheckpoint || isProposalOpen
+                  ? "opacity-50 cursor-not-allowed"
+                  : ""
+              }`}
             >
               <span className="text-2xl">🌻</span>
               <span>Caminar por el Campo</span>
@@ -929,11 +862,10 @@ export default function App() {
         </div>
       )}
 
-      {/* VIEW 3: CHECKPOINT APPRECIATION MODAL */}
+      {/* Modal Checkpoint */}
       {activeCheckpoint && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-slate-900 border-2 border-amber-400/60 max-w-md w-full p-8 rounded-3xl shadow-[0_0_60px_rgba(251,191,36,0.3)] relative text-center space-y-6">
-            {/* Glowing Icon */}
             <div className="w-20 h-20 mx-auto rounded-full bg-amber-400/20 border-2 border-amber-400 flex items-center justify-center text-4xl shadow-[0_0_25px_#f59e0b] animate-bounce">
               🌻
             </div>
@@ -967,7 +899,7 @@ export default function App() {
         </div>
       )}
 
-      {/* VIEW 4: PROPOSAL MODAL (AT 100% PROGRESS) */}
+      {/* Modal Propuesta */}
       {isProposalOpen && !hasAccepted && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-lg flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-gradient-to-b from-slate-900 via-slate-950 to-black border-2 border-amber-400/80 max-w-lg w-full p-8 sm:p-10 rounded-3xl shadow-[0_0_80px_rgba(251,191,36,0.4)] relative text-center space-y-8">
@@ -990,16 +922,13 @@ export default function App() {
               brilla como la primavera.
             </p>
 
-            {/* The Big Question */}
             <div className="py-2">
               <h3 className="text-2xl sm:text-3xl font-black text-amber-300 tracking-wide drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]">
                 ¿Quieres ser mi novia? 💛
               </h3>
             </div>
 
-            {/* Interactive Response Buttons */}
             <div className="relative pt-2 flex flex-col sm:flex-row items-center justify-center gap-4 min-h-[100px]">
-              {/* YES Button */}
               <button
                 onClick={handleAcceptProposal}
                 className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-lg shadow-[0_0_30px_rgba(251,191,36,0.6)] transition-all transform hover:scale-110 active:scale-95 flex items-center justify-center gap-2 z-10"
@@ -1008,7 +937,6 @@ export default function App() {
                 <span>¡SÍ, ACEPTO! 💛</span>
               </button>
 
-              {/* Playful Runaway NO Button */}
               <button
                 onMouseEnter={handleNoButtonHover}
                 onClick={handleNoButtonHover}
@@ -1026,7 +954,7 @@ export default function App() {
         </div>
       )}
 
-      {/* VIEW 5: CELEBRATION ACCEPTED VIEW */}
+      {/* Pantalla Celebración */}
       {hasAccepted && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in text-center">
           <div className="max-w-xl w-full bg-gradient-to-b from-amber-950/60 via-slate-900 to-slate-950 border-2 border-amber-400 p-8 sm:p-12 rounded-3xl shadow-[0_0_100px_rgba(251,191,36,0.6)] space-y-8 relative overflow-hidden">
